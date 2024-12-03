@@ -2,6 +2,8 @@
 
 A modern React-based chat application that leverages both Groq AI and local LM Studio models for cybersecurity-focused conversations.
 
+![Dashboard](/img/chatbot.png)
+
 ## Features
 
 - **Dual Model Support**:
