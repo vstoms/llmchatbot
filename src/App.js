@@ -92,6 +92,9 @@ function App() {
   const [frequencyPenalty, setFrequencyPenalty] = useState(0);
   const [presencePenalty, setPresencePenalty] = useState(0);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  const [systemMessage, setSystemMessage] = useState(
+    "You are a highly knowledgeable cybersecurity expert. Provide accurate, up-to-date information about cybersecurity topics, best practices, threat detection, and security measures. Focus on practical, actionable advice while maintaining technical accuracy. If you're unsure about something, acknowledge it and suggest reliable sources for further information."
+  );
   const messagesEndRef = useRef(null);
 
   const currentTheme = Object.values(THEMES).find(theme => theme.id === selectedTheme);
@@ -118,7 +121,7 @@ function App() {
         messages: [
           {
             role: "system",
-            content: "You are a highly knowledgeable cybersecurity expert. Provide accurate, up-to-date information about cybersecurity topics, best practices, threat detection, and security measures. Focus on practical, actionable advice while maintaining technical accuracy. If you're unsure about something, acknowledge it and suggest reliable sources for further information."
+            content: systemMessage
           },
           ...cleanMessages,
           cleanUserMessage
@@ -151,7 +154,7 @@ function App() {
           messages: [
             {
               role: "system",
-              content: "You are a highly knowledgeable cybersecurity expert. Provide accurate, up-to-date information about cybersecurity topics, best practices, threat detection, and security measures. Focus on practical, actionable advice while maintaining technical accuracy. If you're unsure about something, acknowledge it and suggest reliable sources for further information."
+              content: systemMessage
             },
             ...messages.map(msg => ({
               role: msg.role,
@@ -378,6 +381,25 @@ function App() {
                         </div>
                       </div>
                     )}
+
+                    <div>
+                      <label className="block mb-2" style={{ color: currentTheme.text }}>AI Personality</label>
+                      <textarea
+                        value={systemMessage}
+                        onChange={(e) => setSystemMessage(e.target.value)}
+                        className="w-full px-4 py-2 rounded-md bg-black/20 border border-gray-700 min-h-[100px]"
+                        style={{ color: currentTheme.text }}
+                        placeholder="Define the AI's role and personality..."
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setSystemMessage("You are a highly knowledgeable cybersecurity expert. Provide accurate, up-to-date information about cybersecurity topics, best practices, threat detection, and security measures. Focus on practical, actionable advice while maintaining technical accuracy. If you're unsure about something, acknowledge it and suggest reliable sources for further information.")}
+                        className="mt-2 text-sm px-2 py-1 rounded"
+                        style={{ color: currentTheme.accent }}
+                      >
+                        Reset to Default
+                      </button>
+                    </div>
 
                     <div>
                       <label className="block mb-2" style={{ color: currentTheme.text }}>Theme</label>
