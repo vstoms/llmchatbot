@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Groq } from 'groq-sdk';
 import { ShieldCheckIcon, PaperAirplaneIcon, TrashIcon, ComputerDesktopIcon, CloudIcon, Cog6ToothIcon } from '@heroicons/react/24/solid';
 import ReactMarkdown from 'react-markdown';
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const MODELS = {
   GROQ: {
@@ -13,6 +14,11 @@ const MODELS = {
     id: 'local',
     name: 'Local LM',
     icon: ComputerDesktopIcon,
+  },
+  GEMINI: {
+    id: 'gemini',
+    name: 'Gemini 2.0 Flash',
+    icon: CloudIcon,
   }
 };
 
@@ -199,6 +205,85 @@ function App() {
     }
   };
 
+  const processMessageWithGemini = async (messages, userMessage) => {
+    try {
+      // Format messages including history
+      const contents = [
+        // Add system message if it exists
+        ...(systemMessage ? [{
+          role: "user",
+          parts: [{ text: systemMessage }]
+        }] : []),
+        // Add conversation history
+        ...messages.map(msg => ({
+          role: msg.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: msg.content }]
+        })),
+        // Add current message
+        {
+          role: "user",
+          parts: [{ text: userMessage.content }]
+        }
+      ];
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${process.env.REACT_APP_GEMINI_API_KEY}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contents,
+            generationConfig: {
+              temperature: temperature,
+              topK: 40,
+              topP: parseFloat(topP),
+              maxOutputTokens: 8192,  // Maximum allowed by the API
+              responseMimeType: "text/plain"
+            }
+          })
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Response error:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}. Response: ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log('Full Gemini API response:', JSON.stringify(data, null, 2));
+      
+      if (!data.candidates || !data.candidates[0]) {
+        console.error('No candidates in response:', data);
+        throw new Error('No response candidates from Gemini');
+      }
+
+      if (!data.candidates[0].content) {
+        console.error('No content in first candidate:', data.candidates[0]);
+        throw new Error('No content in Gemini response');
+      }
+
+      if (!data.candidates[0].content.parts || !data.candidates[0].content.parts[0]) {
+        console.error('No parts in content:', data.candidates[0].content);
+        throw new Error('No parts in Gemini response content');
+      }
+
+      if (!data.candidates[0].content.parts[0].text) {
+        console.error('No text in first part:', data.candidates[0].content.parts[0]);
+        throw new Error('No text in Gemini response part');
+      }
+
+      const responseText = data.candidates[0].content.parts[0].text;
+      console.log('Extracted response text:', responseText);
+      return responseText;
+    } catch (error) {
+      console.error('Gemini Error:', error);
+      throw new Error(`Gemini Error: ${error.message}`);
+    }
+  };
+
   const handleSubmit = async (e, message = input) => {
     e.preventDefault();
     if (!message.trim()) return;
@@ -217,8 +302,10 @@ function App() {
       let responseContent;
       if (selectedModel === MODELS.GROQ.id) {
         responseContent = await processMessageWithGroq(messages, userMessage);
-      } else {
+      } else if (selectedModel === MODELS.LOCAL.id) {
         responseContent = await processMessageWithLocal(messages, userMessage);
+      } else if (selectedModel === MODELS.GEMINI.id) {
+        responseContent = await processMessageWithGemini(messages, userMessage);
       }
 
       const assistantMessage = {
@@ -256,7 +343,9 @@ function App() {
     try {
       const response = selectedModel === MODELS.GROQ.id
         ? await processMessageWithGroq([], userMessage)
-        : await processMessageWithLocal([], userMessage);
+        : selectedModel === MODELS.LOCAL.id
+        ? await processMessageWithLocal([], userMessage)
+        : await processMessageWithGemini([], userMessage);
 
       setMessages(prevMessages => [...prevMessages, { role: 'assistant', content: response }]);
     } catch (error) {
@@ -343,10 +432,15 @@ function App() {
                     ({GROQ_MODELS[selectedGroqModel].contextWindow.toLocaleString()} tokens)
                   </span>
                 </>
-              ) : (
+              ) : selectedModel === MODELS.LOCAL.id ? (
                 <>
                   <ComputerDesktopIcon className="h-5 w-5" style={{ color: currentTheme.accent }} />
                   <span className="text-sm" style={{ color: currentTheme.text }}>Local LM Studio</span>
+                </>
+              ) : (
+                <>
+                  <CloudIcon className="h-5 w-5" style={{ color: currentTheme.accent }} />
+                  <span className="text-sm" style={{ color: currentTheme.text }}>Gemini 2.0 Flash</span>
                 </>
               )}
             </div>
@@ -592,8 +686,10 @@ function App() {
                     <div className="flex-shrink-0 mt-1">
                       {message.model === MODELS.GROQ.id ? (
                         <CloudIcon className="h-5 w-5 text-white" />
-                      ) : (
+                      ) : message.model === MODELS.LOCAL.id ? (
                         <ComputerDesktopIcon className="h-5 w-5 text-white" />
+                      ) : (
+                        <CloudIcon className="h-5 w-5 text-white" />
                       )}
                     </div>
                   )}
@@ -660,8 +756,10 @@ function App() {
                   <div className="flex-shrink-0">
                     {selectedModel === MODELS.GROQ.id ? (
                       <CloudIcon className="h-5 w-5 text-white animate-pulse" />
-                    ) : (
+                    ) : selectedModel === MODELS.LOCAL.id ? (
                       <ComputerDesktopIcon className="h-5 w-5 text-white animate-pulse" />
+                    ) : (
+                      <CloudIcon className="h-5 w-5 text-white animate-pulse" />
                     )}
                   </div>
                   <div className="pl-2 text-[15px] text-white/95">Thinking...</div>
@@ -765,7 +863,7 @@ function App() {
                   className="w-full"
                 />
                 <p className="text-sm mt-1 text-gray-400">
-                  Controls diversity via nucleus sampling
+                  Controls diversity: Lower values are more focused
                 </p>
               </div>
 
@@ -793,7 +891,7 @@ function App() {
                   className="w-full"
                 />
                 <p className="text-sm mt-1 text-gray-400">
-                  Reduces repetition of frequent tokens
+                  Controls repetition: Higher values discourage repetition
                 </p>
               </div>
 
@@ -821,19 +919,19 @@ function App() {
                   className="w-full"
                 />
                 <p className="text-sm mt-1 text-gray-400">
-                  Encourages the model to talk about new topics
+                  Controls presence: Higher values encourage presence
                 </p>
               </div>
             </div>
           )}
-
+          {/* Chat Input Form */}
           <form onSubmit={handleSubmit} className="relative">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="You ask, we answer..."
-              className="w-full bg-[#1C1C1C] text-gray-200 placeholder-gray-500 rounded-xl py-4 px-6 pr-12 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              className="w-full bg-[#1C1C1C] text-gray-200 placeholder-gray-500 rounded-xl py-4 px-6 pr-12 focus:outline-none focus:ring-2 focus:ring-[#2A9D8F]"
               style={{ 
                 backgroundColor: currentTheme.background, 
                 color: currentTheme.text 
@@ -842,7 +940,7 @@ function App() {
             <button
               type="submit"
               disabled={isLoading}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-cyan-400 hover:text-cyan-300 disabled:text-gray-600 disabled:hover:text-gray-600"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#2A9D8F] hover:text-[#248F82] disabled:text-gray-600 disabled:hover:text-gray-600"
               style={{ color: currentTheme.accent }}
             >
               <PaperAirplaneIcon className="h-6 w-6" />
